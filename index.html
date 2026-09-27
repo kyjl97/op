@@ -1,0 +1,558 @@
+<!DOCTYPE html>
+<html lang="zh-CN" class="scroll-smooth">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>旁路网关配置最佳实践</title>
+
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@400;500;700&display=swap" rel="stylesheet">
+
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    fontFamily: {
+                        sans: ['"Noto Sans SC"', 'sans-serif'],
+                    },
+                    colors: {
+                        primary: {
+                            50: '#e0f2fe',
+                            100: '#e0f2fe',
+                            200: '#bae6fd',
+                            300: '#7dd3fc',
+                            400: '#38bdf8',
+                            500: '#0ea5e9',
+                            600: '#0284c7',
+                            700: '#4f46e5',
+                            800: '#3730a3',
+                            900: '#312e81',
+                        },
+                        indigo: {
+                            50: '#eef2ff',
+                            100: '#e0e7ff',
+                            500: '#6366f1',
+                            600: '#4f46e5',
+                            900: '#312e81',
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        body {
+            font-family: 'Noto Sans SC', sans-serif;
+            -webkit-font-smoothing: antialiased;
+            -moz-osx-font-smoothing: grayscale;
+        }
+
+        /* 渐变文字效果 */
+        .gradient-text {
+            background: linear-gradient(135deg, #0ea5e9, #6366f1);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+        .dark .gradient-text {
+            background: linear-gradient(135deg, #38bdf8, #818cf8);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        .dark .fa-sun { display: inline-block; }
+        .dark .fa-moon { display: none; }
+        html:not(.dark) .fa-sun { display: none; }
+        html:not(.dark) .fa-moon { display: inline-block; }
+
+        /* 全局过渡动画 */
+        * {
+            transition: background-color 0.3s, border-color 0.3s, color 0.3s, opacity 0.3s, transform 0.3s;
+        }
+    </style>
+</head>
+
+<body class="bg-gradient-to-br from-gray-50 to-gray-100 dark:from-gray-900 dark:to-slate-800 text-gray-700 dark:text-gray-300 transition-colors duration-300 text-sm leading-relaxed tracking-wide">
+
+    <!-- 导航栏 -->
+    <nav class="sticky top-0 z-40 bg-white/70 dark:bg-gray-900/70 backdrop-blur-lg border-b border-gray-200 dark:border-gray-800 transition-colors duration-300">
+        <div class="max-w-5xl mx-auto px-6">
+            <div class="flex justify-between h-14 items-center">
+                <div class="flex items-center">
+                    <div class="flex-shrink-0 flex items-center gap-2">
+                        <i class="fa-solid fa-route text-indigo-500 text-xl"></i>
+                        <span class="text-lg font-bold text-gray-900 dark:text-white gradient-text">旁路由配置指南</span>
+                    </div>
+                </div>
+                <!-- 右侧功能区 -->
+                <div class="flex items-center gap-4">
+                    <div class="hidden md:flex items-center gap-5 text-base font-bold">
+                        <a href="https://ip111.cn/" target="_blank" rel="noopener noreferrer" class="text-gray-600 dark:text-gray-300 hover:text-indigo-500 transition-colors">IP查询</a>
+                        <a href="https://kyjl97.github.io/Proxyfree//" target="_blank" rel="noopener noreferrer" class="text-gray-600 dark:text-gray-300 hover:text-indigo-500 transition-colors">专线机场</a>
+                        <a href="https://smarttubeapp.github.io/" target="_blank" rel="noopener noreferrer" class="text-gray-600 dark:text-gray-300 hover:text-indigo-500 transition-colors">油管TV版</a>
+                        <a href="http://114.66.61.130:9329" target="_blank" rel="noopener noreferrer" class="text-gray-600 dark:text-gray-300 hover:text-indigo-500 transition-colors">粉丝网盘</a>
+                        <a href="https://jieliu.me/" target="_blank" rel="noopener noreferrer" class="text-gray-600 dark:text-gray-300 hover:text-indigo-500 transition-colors">付费咨询</a>
+                    </div>
+
+                    <button id="theme-toggle" class="w-9 h-9 flex justify-center items-center rounded-lg text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700 transition-all">
+                        <i class="fa-solid fa-moon text-base"></i>
+                        <i class="fa-solid fa-sun text-base"></i>
+                    </button>
+                </div>
+            </div>
+        </div>
+    </nav>
+
+    <!-- 主要内容 -->
+    <main class="max-w-5xl mx-auto px-6 py-8">
+        <!-- 引言部分 -->
+        <section class="mb-8">
+            <div class="bg-gradient-to-r from-sky-500 to-indigo-600 text-white rounded-xl p-6 mb-6 shadow-lg transform transition-transform duration-300 hover:scale-[1.005]">
+                <h1 class="text-xl md:text-3xl font-bold mb-3 leading-tight text-white">家庭网络基于OpenWrt系统的旁路网关配置最佳实践</h1>
+                <p class="text-base md:text-lg opacity-90 font-medium">维持原有网络架构，主路由负责基础连接，旁路由接管扩展服务，解耦配置风险，保障核心网络高可用。</p>
+            </div>
+
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
+                <div class="bg-white/80 dark:bg-gray-800/80 backdrop-blur-sm rounded-lg p-5 shadow-sm border border-gray-200 dark:border-gray-700 transition-all duration-300 hover:shadow-lg hover:border-indigo-500 dark:hover:border-indigo-500">
+                    <div class="flex items-center mb-2">
+                        <div class="bg-sky-100 dark:bg-sky-900/50 p-2 rounded-full mr-3 text-sky-600 dark:text-sky-400">
+                            <i class="fa-solid fa-wifi text-sm"></i>
+                        </div>
+                        <h3 class="text-base font-bold text-gray-900 dark:text-white">网络结构不变</h3>
+                    </div>
+                    <p class="text-xs text-gray-500 dark:text-gray-400">保留主路由原有设置，仅通过旁路由实现扩展功能</p>
+                </div>
+                <div class="bg-white/80 dark:bg-gray-800/80 backdrop-blur-sm rounded-lg p-5 shadow-sm border border-gray-200 dark:border-gray-700 transition-all duration-300 hover:shadow-lg hover:border-indigo-500 dark:hover:border-indigo-500">
+                    <div class="flex items-center mb-2">
+                        <div class="bg-emerald-100 dark:bg-emerald-900/50 p-2 rounded-full mr-3 text-emerald-600 dark:text-emerald-400">
+                            <i class="fa-solid fa-shield-alt text-sm"></i>
+                        </div>
+                        <h3 class="text-base font-bold text-gray-900 dark:text-white">降低断网风险</h3>
+                    </div>
+                    <p class="text-xs text-gray-500 dark:text-gray-400">避免主路由配置冲突，提升网络稳定性</p>
+                </div>
+                <div class="bg-white/80 dark:bg-gray-800/80 backdrop-blur-sm rounded-lg p-5 shadow-sm border border-gray-200 dark:border-gray-700 transition-all duration-300 hover:shadow-lg hover:border-indigo-500 dark:hover:border-indigo-500">
+                    <div class="flex items-center mb-2">
+                        <div class="bg-purple-100 dark:bg-purple-900/50 p-2 rounded-full mr-3 text-purple-600 dark:text-purple-400">
+                            <i class="fa-solid fa-filter text-sm"></i>
+                        </div>
+                        <h3 class="text-base font-bold text-gray-900 dark:text-white">智能流量分流</h3>
+                    </div>
+                    <p class="text-xs text-gray-500 dark:text-gray-400">利用 DHCP 选项为不同设备分配不同的网关</p>
+                </div>
+            </div>
+        </section>
+
+        <!-- 连接图 -->
+        <section class="mb-8">
+            <h2 class="text-lg font-bold mb-4 flex items-center text-gray-900 dark:text-white">
+                <i class="fa-solid fa-project-diagram mr-2 text-indigo-500"></i>
+                网络连接拓扑
+            </h2>
+            <div class="rounded-xl shadow-md overflow-hidden border border-gray-200 dark:border-gray-700">
+                <img src="https://gitee.com/da-qiang-classmate/typora/raw/master/image/20251206092441690.webp"
+                     alt="旁路由网络拓扑图"
+                     class="w-full h-auto object-cover hover:scale-[1.01] transition-transform duration-500">
+            </div>
+            <p class="text-center text-xs text-gray-500 mt-2">图示：主路由负责拨号，旁路由负责 DHCP 及特殊网络服务</p>
+        </section>
+
+        <!-- 旁路由详细配置 -->
+        <section class="mb-8">
+            <h2 class="text-lg font-bold mb-4 flex items-center text-gray-900 dark:text-white">
+                <i class="fa-solid fa-sliders mr-2 text-indigo-500"></i>
+                旁路由核心配置
+            </h2>
+
+            <div class="grid grid-cols-1 lg:grid-cols-2 gap-5">
+                <!-- 左侧：接口配置 -->
+                <div class="bg-white/80 dark:bg-gray-800/80 backdrop-blur-sm rounded-xl shadow-md overflow-hidden border border-gray-200 dark:border-gray-700">
+                    <div class="p-4 border-b border-gray-100 dark:border-gray-700 bg-sky-50/50 dark:bg-sky-900/20">
+                        <h3 class="text-base font-bold text-sky-800 dark:text-sky-300 flex items-center">
+                            <i class="fa-solid fa-network-wired mr-2"></i> 接口配置
+                        </h3>
+                        <p class="text-xs text-sky-600 dark:text-sky-400 mt-1">进入 OpenWrt 后台进行网络 - 接口 - LAN-常规设置</p>
+                    </div>
+
+                    <div class="p-4">
+                        <div class="relative pl-5 border-l-2 border-sky-200 dark:border-sky-700 space-y-6">
+                            <!-- IPv4 -->
+                            <div class="relative">
+                                <span class="absolute -left-[27px] bg-sky-500 text-white rounded-full w-5 h-5 flex items-center justify-center text-[10px] shadow-md ring-2 ring-white dark:ring-gray-800"><i class="fa-solid fa-check"></i></span>
+                                <h4 class="font-bold text-sm text-gray-900 dark:text-gray-100">IPv4 地址: 192.168.5.2</h4>
+                                <p class="text-gray-500 dark:text-gray-400 text-xs">设为同网段的空闲 IP，方便记忆</p>
+                                <div class="mt-1 bg-gray-50 dark:bg-gray-900/50 border border-gray-200 dark:border-gray-700 rounded p-1.5 text-xs font-mono">192.168.5.2</div>
+                            </div>
+
+                            <!-- Gateway -->
+                            <div class="relative">
+                                <span class="absolute -left-[27px] bg-sky-500 text-white rounded-full w-5 h-5 flex items-center justify-center text-[10px] shadow-md ring-2 ring-white dark:ring-gray-800"><i class="fa-solid fa-check"></i></span>
+                                <h4 class="font-bold text-sm text-gray-900 dark:text-gray-100">IPv4 网关: 192.168.5.1</h4>
+                                <p class="text-gray-500 dark:text-gray-400 text-xs">指向主路由 IP，因为旁路由也要上网</p>
+                                <div class="mt-1 bg-gray-50 dark:bg-gray-900/50 border border-gray-200 dark:border-gray-700 rounded p-1.5 text-xs font-mono flex justify-between">
+                                    <span>192.168.5.1</span>
+                                    <span class="text-[10px] bg-sky-100 dark:bg-sky-900 text-sky-800 dark:text-sky-200 px-1 rounded">Main Router</span>
+                                </div>
+                            </div>
+
+                            <!-- DNS -->
+                            <div class="relative">
+                                <span class="absolute -left-[27px] bg-sky-500 text-white rounded-full w-5 h-5 flex items-center justify-center text-[10px] shadow-md ring-2 ring-white dark:ring-gray-800"><i class="fa-solid fa-check"></i></span>
+                                <h4 class="font-bold text-sm text-gray-900 dark:text-gray-100">DNS 服务器: 192.168.5.1</h4>
+                                <p class="text-gray-500 dark:text-gray-400 text-xs">同样指向主路由，或使用公共 DNS (如 223.5.5.5)</p>
+                            </div>
+
+                            <!-- DHCP -->
+                            <div class="relative">
+                                <span class="absolute -left-[27px] bg-emerald-500 text-white rounded-full w-5 h-5 flex items-center justify-center text-[10px] shadow-md ring-2 ring-white dark:ring-gray-800"><i class="fa-solid fa-power-off"></i></span>
+                                <h4 class="font-bold text-sm text-emerald-600 dark:text-emerald-400">DHCP 服务器: 必须开启</h4>
+                                <p class="text-gray-500 dark:text-gray-400 text-xs">本方案由旁路由完全接管 IP 分配权</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 右侧：防火墙配置 -->
+                <div class="bg-white/80 dark:bg-gray-800/80 backdrop-blur-sm rounded-xl shadow-md overflow-hidden border border-gray-200 dark:border-gray-700 flex flex-col">
+                    <div class="p-4 border-b border-gray-100 dark:border-gray-700 bg-orange-50/50 dark:bg-orange-900/20">
+                        <h3 class="text-base font-bold text-orange-800 dark:text-orange-300 flex items-center">
+                            <i class="fa-solid fa-shield-halved mr-2"></i> 防火墙配置
+                        </h3>
+                        <p class="text-xs text-orange-600 dark:text-orange-400 mt-1">进入 OpenWrt 后台：网络-防火墙</p>
+                    </div>
+
+                    <div class="p-4 flex-1 flex flex-col justify-center">
+                        <div class="bg-red-50 dark:bg-red-900/20 border-l-4 border-red-500 p-3 mb-4">
+                            <h4 class="font-bold text-red-700 dark:text-red-300 mb-1 text-sm">为什么必须开启 NAT？</h4>
+                            <p class="text-xs text-red-600 dark:text-red-400 leading-relaxed">如果不开启此项，连接主路由wifi的设备，只能访问国外网站，国内部分网站打不开，直播看不了，所有网站流量IP会判国外ip。</p>
+                        </div>
+
+                        <div class="bg-gray-100 dark:bg-gray-700/50 rounded-lg p-3 border border-gray-200 dark:border-gray-600">
+                            <div class="text-[10px] text-gray-500 dark:text-gray-400 mb-1 uppercase tracking-wide">OpenWrt 设置示意图</div>
+                            <div class="flex items-center justify-between bg-white dark:bg-gray-800 p-2 rounded shadow-sm text-xs border border-gray-100 dark:border-gray-600">
+                                <span class="font-mono font-bold text-gray-700 dark:text-gray-200">lan <i class="fa-solid fa-arrow-right mx-1 text-gray-400"></i> wan</span>
+                                <div class="flex items-center">
+                                    <span class="mr-2 text-gray-600 dark:text-gray-300">IP 动态伪装</span>
+                                    <div class="relative inline-block w-8 h-5 align-middle select-none">
+                                        <div class="absolute block w-5 h-5 rounded-full bg-indigo-600 border-2 border-white dark:border-gray-700 appearance-none cursor-pointer right-0"></div>
+                                        <div class="block overflow-hidden h-5 rounded-full bg-indigo-200 dark:bg-indigo-900 cursor-pointer"></div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="mt-4 text-xs text-gray-600 dark:text-gray-400 bg-amber-50 dark:bg-amber-900/10 p-3 rounded-lg border border-amber-100 dark:border-amber-900/30">
+                            <p><strong>原理剖析：</strong> 旁路由会对源地址进行一次伪装 (Masquerading)。外网看到的源地址是主路由的公网 IP，而不是设备的私网 IP。旁路由建立 NAT 表来追踪这些会话。</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- 智能流量分流 -->
+        <section class="mb-8">
+            <h2 class="text-lg font-bold mb-4 flex items-center text-gray-900 dark:text-white">
+                <i class="fa-solid fa-code-branch mr-2 text-indigo-500"></i>
+                智能分流方案
+            </h2>
+
+            <p class="mb-2 text-xs font-medium text-indigo-600 dark:text-indigo-400">
+                <i class="fa-solid fa-location-arrow mr-1"></i> 进入 OpenWrt 后台：网络-DHCP/DNS-静态地址分配
+            </p>
+
+            <p class="mb-4 text-xs text-gray-600 dark:text-gray-400">OpenWrt 默认使用 DNSMASQ，我们可以利用 DHCP 选项为不同设备分配不同的网关。请根据你的需求选择以下一种方案：</p>
+
+            <div class="grid grid-cols-1 lg:grid-cols-2 gap-5">
+                <!-- 方案一 -->
+                <div class="bg-white/80 dark:bg-gray-800/80 backdrop-blur-sm rounded-xl shadow-md overflow-hidden border border-gray-200 dark:border-gray-700 flex flex-col hover:border-indigo-500 dark:hover:border-indigo-500 transition-colors">
+                    <div class="bg-purple-50/50 dark:bg-purple-900/20 p-4 border-b border-purple-100 dark:border-purple-800">
+                        <div class="inline-block bg-purple-100 dark:bg-purple-800 text-purple-700 dark:text-purple-200 text-[10px] px-1.5 py-0.5 rounded mb-1 font-bold">方案一</div>
+                        <h3 class="text-base font-bold text-gray-900 dark:text-white">大部分走代理，少部分直连</h3>
+                        <p class="text-xs text-gray-500 dark:text-gray-400 mt-0.5">适合：全屋设备默认都要科学环境，只有电视、特定手机走国内直连。</p>
+                    </div>
+
+                    <div class="p-4 flex-1">
+                        <div class="space-y-4">
+                            <div>
+                                <h4 class="text-xs font-bold text-gray-700 dark:text-gray-300 mb-1"><i class="fa-solid fa-1 mr-1.5 text-purple-500"></i>MAC 绑定</h4>
+                                <p class="text-xs text-gray-500 mb-1">给需要直连的设备添加标签 <span class="font-mono text-purple-600 dark:text-purple-400">direct</span></p>
+                            </div>
+
+                            <div>
+                                <h4 class="text-xs font-bold text-gray-700 dark:text-gray-300 mb-1"><i class="fa-solid fa-2 mr-1.5 text-purple-500"></i>DHCP 选项代码</h4>
+                                <div class="bg-gray-900 text-gray-300 p-2.5 rounded text-xs font-mono mb-1 border border-gray-700">
+                                    <div class="text-gray-500 mb-0.5">// 强制direct标签网关为主路由</div>
+                                    <div class="text-emerald-400">tag:direct,3,192.168.5.1</div>
+                                    <div class="text-gray-500 mt-1.5 mb-0.5">// 强制direct标签DNS为主路由</div>
+                                    <div class="text-emerald-400">tag:direct,6,192.168.5.1</div>
+                                </div>
+                            </div>
+
+                            <div class="bg-gray-50 dark:bg-gray-700/50 p-2 rounded text-xs text-gray-600 dark:text-gray-400">
+                                <span class="font-bold">逻辑：</span> 给特定设备打上 <code class="bg-gray-200 dark:bg-gray-600 px-1 rounded">direct</code> 标签。这些设备将强制使用 192.168.5.1 (主路由) 作为网关。
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 方案二 -->
+                <div class="bg-white/80 dark:bg-gray-800/80 backdrop-blur-sm rounded-xl shadow-md overflow-hidden border border-gray-200 dark:border-gray-700 flex flex-col hover:border-indigo-500 dark:hover:border-indigo-500 transition-colors">
+                    <div class="bg-sky-50/50 dark:bg-sky-900/20 p-4 border-b border-sky-100 dark:border-sky-800">
+                        <div class="inline-block bg-sky-100 dark:bg-sky-800 text-sky-700 dark:text-sky-200 text-[10px] px-1.5 py-0.5 rounded mb-1 font-bold">方案二</div>
+                        <h3 class="text-base font-bold text-gray-900 dark:text-white">大部分直连，少部分科学上网</h3>
+                        <p class="text-xs text-gray-500 dark:text-gray-400 mt-0.5">适合：保持原有网络体验，只有电脑、游戏机等特定设备走代理。</p>
+                    </div>
+
+                    <div class="p-4 flex-1">
+                        <div class="space-y-4">
+                            <div>
+                                <h4 class="text-xs font-bold text-gray-700 dark:text-gray-300 mb-1"><i class="fa-solid fa-1 mr-1.5 text-sky-500"></i>MAC 绑定</h4>
+                                <p class="text-xs text-gray-500 mb-1">给需要走代理的设备添加标签 <span class="font-mono text-sky-600 dark:text-sky-400">proxy</span></p>
+                            </div>
+
+                            <div>
+                                <h4 class="text-xs font-bold text-gray-700 dark:text-gray-300 mb-1"><i class="fa-solid fa-2 mr-1.5 text-sky-500"></i>DHCP 选项代码</h4>
+                                <div class="bg-gray-900 text-gray-300 p-2.5 rounded text-xs font-mono mb-1 border border-gray-700">
+                                    <div class="text-gray-500 mb-0.5">// 非proxy标签网关走主路由</div>
+                                    <div class="text-yellow-400">tag:!proxy,3,192.168.5.1</div>
+                                    <div class="text-gray-500 mt-1.5 mb-0.5">// 非proxy标签DNS走主路由</div>
+                                    <div class="text-yellow-400">tag:!proxy,6,192.168.5.1</div>
+                                </div>
+                            </div>
+
+                            <div class="bg-gray-50 dark:bg-gray-700/50 p-2 rounded text-xs text-gray-600 dark:text-gray-400">
+                                <span class="font-bold">逻辑反向：</span> 如果设备标签<span class="text-red-500 font-bold">不是</span> <code class="bg-gray-200 dark:bg-gray-600 px-1 rounded">proxy</code>，则网关和DNS分配为主路由 IP。只有打上 proxy 标签的设备才会走旁路由网关。
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- 主路由配合设置 -->
+        <section class="mb-8">
+            <h2 class="text-lg font-bold mb-4 flex items-center text-gray-900 dark:text-white">
+                <i class="fa-solid fa-circle-exclamation mr-2 text-indigo-500"></i>
+                关闭主路由DHCP
+            </h2>
+
+            <div class="relative bg-white/80 dark:bg-gray-800/80 backdrop-blur-sm rounded-xl shadow-md p-5 transition-all duration-300 hover:shadow-xl border border-gray-200 dark:border-gray-700">
+                <div class="absolute top-0 right-0 bg-red-500 text-white text-[10px] font-bold px-2 py-0.5 rounded-bl-lg rounded-tr-xl shadow-sm z-10">
+                    <i class="fa-solid fa-star mr-1"></i> 核心操作
+                </div>
+
+                <div class="bg-red-50 dark:bg-red-900/20 border-l-4 border-red-500 p-3 mb-4">
+                    <div class="flex items-start">
+                        <i class="fa-solid fa-triangle-exclamation text-red-500 mr-2 mt-0.5"></i>
+                        <div>
+                            <h4 class="font-bold text-red-700 dark:text-red-300 text-sm">重要提醒</h4>
+                            <p class="mt-0.5 text-red-600 dark:text-red-400 text-xs">因为旁路由开启了强制 DHCP，请务必 <strong class="text-red-700 dark:text-red-200 font-bold">关闭主路由的 DHCP 服务</strong>，否则会导致局域网内存在两个 DHCP 服务器，设备获取 IP 混乱。</p>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="rounded-lg overflow-hidden border border-gray-200 dark:border-gray-700 shadow-sm">
+                     <img src="https://gitee.com/da-qiang-classmate/typora/raw/master/image/20251206094024197.webp"
+                     alt="主路由设置示意图"
+                     class="w-full h-auto object-cover">
+                </div>
+                <p class="text-center text-xs text-gray-500 mt-2">如图所示：确保主路由 DHCP 服务处于关闭状态</p>
+            </div>
+        </section>
+    </main>
+
+    <!-- 页脚 -->
+    <footer class="bg-white/50 dark:bg-gray-900/50 backdrop-blur-md border-t border-gray-200 dark:border-gray-800 mt-4">
+        <div class="max-w-5xl mx-auto px-6 py-6 flex justify-center items-center gap-6">
+             <span class="text-gray-500 dark:text-gray-400 text-sm font-medium tracking-wider">© 2026</span>
+             <a href="https://github.com/kyjl97" target="_blank" rel="noopener noreferrer" class="text-gray-500 hover:text-gray-900 dark:hover:text-white transition-colors transform hover:scale-110" aria-label="GitHub Profile"><i class="fab fa-github text-xl"></i></a>
+             <a href="#" id="wechat-public-trigger" class="text-gray-500 hover:text-green-500 dark:hover:text-green-400 transition-colors transform hover:scale-110" aria-label="WeChat Public Account"><i class="fab fa-weixin text-xl"></i></a>
+             <a href="#" id="donation-btn" class="text-gray-500 hover:text-indigo-500 dark:hover:text-indigo-400 transition-colors transform hover:scale-110" aria-label="Sponsor this project">
+                <i class="fas fa-hand-holding-heart text-xl"></i>
+             </a>
+        </div>
+    </footer>
+
+    <!-- ====== Donation Modal ====== -->
+    <div id="donation-modal" class="fixed inset-0 z-50 bg-gray-900/60 backdrop-blur-sm flex items-center justify-center p-4 hidden">
+        <div class="bg-white dark:bg-gray-800 rounded-xl shadow-2xl w-full max-w-xs p-5 text-center transform transition-all border border-gray-200 dark:border-gray-700" role="dialog" aria-modal="true" aria-labelledby="modal-title">
+            <h3 id="modal-title" class="text-base font-semibold text-gray-900 dark:text-white mb-3">感谢您的支持！</h3>
+
+            <div class="flex border border-gray-200 dark:border-gray-700 rounded-lg overflow-hidden mb-4">
+                <button id="wechat-tab" class="flex-1 p-2 text-xs font-semibold border-r border-gray-200 dark:border-gray-700 bg-indigo-50 dark:bg-indigo-900/50 text-indigo-700 dark:text-indigo-300 transition-colors">
+                    <i class="fab fa-weixin mr-1"></i> 微信
+                </button>
+                <button id="alipay-tab" class="flex-1 p-2 text-xs font-semibold text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors">
+                    <i class="fab fa-alipay mr-1"></i> 支付宝
+                </button>
+            </div>
+
+            <div class="p-2 border border-gray-200 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-900">
+                 <img id="qr-code-img" src="https://raw.githubusercontent.com/kyjl97/kyjl97/main/assets/logo.png" alt="WeChat QR Code" class="w-40 h-40 mx-auto object-contain">
+            </div>
+
+            <button id="close-modal-btn" class="mt-4 w-full bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-200 font-semibold px-4 py-2 rounded-lg transition-colors text-xs">
+                关闭
+            </button>
+        </div>
+    </div>
+
+    <!-- ====== Generic QR Modal ====== -->
+    <div id="generic-qr-modal" class="fixed inset-0 z-50 bg-gray-900/60 backdrop-blur-sm flex items-center justify-center p-4 hidden">
+        <div class="bg-white dark:bg-gray-800 rounded-xl shadow-2xl w-full max-w-xs p-5 text-center transform transition-all border border-gray-200 dark:border-gray-700" role="dialog" aria-modal="true">
+            <h3 id="generic-modal-title" class="text-base font-semibold text-gray-900 dark:text-white mb-3"></h3>
+            <div class="p-2 border border-gray-200 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-900">
+                 <img id="generic-modal-qr-img" src="" alt="QR Code" class="w-40 h-40 mx-auto object-contain">
+            </div>
+            <p id="generic-modal-desc" class="text-xs text-gray-500 dark:text-gray-400 mt-3"></p>
+            <button id="close-generic-modal-btn" class="mt-4 w-full bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-200 font-semibold px-4 py-2 rounded-lg transition-colors text-xs">
+                关闭
+            </button>
+        </div>
+    </div>
+
+    <script>
+        (function() {
+            'use strict';
+            // 主题切换
+            const themeToggleBtn = document.getElementById('theme-toggle');
+
+            if (localStorage.theme === 'dark' || (!('theme' in localStorage) && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
+                document.documentElement.classList.add('dark');
+            } else {
+                document.documentElement.classList.remove('dark');
+            }
+
+            const toggleTheme = () => {
+                const isDark = document.documentElement.classList.contains('dark');
+                if (isDark) {
+                    document.documentElement.classList.remove('dark');
+                    localStorage.theme = 'light';
+                } else {
+                    document.documentElement.classList.add('dark');
+                    localStorage.theme = 'dark';
+                }
+            };
+
+            if(themeToggleBtn) {
+                themeToggleBtn.addEventListener('click', toggleTheme);
+            }
+
+            // 滚动动画
+            const sections = document.querySelectorAll('section');
+            const observer = new IntersectionObserver((entries) => {
+                entries.forEach(entry => {
+                    if (entry.isIntersecting) {
+                        entry.target.classList.add('opacity-100', 'translate-y-0');
+                        entry.target.classList.remove('opacity-0', 'translate-y-8');
+                    }
+                });
+            }, { threshold: 0.1 });
+
+            sections.forEach(section => {
+                section.classList.add('opacity-0', 'translate-y-8', 'transition-all', 'duration-700');
+                observer.observe(section);
+            });
+
+            // Donation Modal Logic
+            const donationBtn = document.getElementById('donation-btn');
+            const donationModal = document.getElementById('donation-modal');
+            const closeModalBtn = document.getElementById('close-modal-btn');
+            const wechatTab = document.getElementById('wechat-tab');
+            const alipayTab = document.getElementById('alipay-tab');
+            const qrCodeImg = document.getElementById('qr-code-img');
+
+            const wechatQRUrl = 'https://raw.githubusercontent.com/kyjl97/kyjl97/main/assets/logo.png';
+            const alipayQRUrl = 'https://raw.githubusercontent.com/kyjl97/kyjl97/main/assets/logo.png';
+
+            const activeTabClasses = ['bg-indigo-50', 'dark:bg-indigo-900/50', 'text-indigo-700', 'dark:text-indigo-300'];
+            const inactiveTabClasses = ['text-gray-500', 'dark:text-gray-400', 'hover:bg-gray-100', 'dark:hover:bg-gray-700', 'bg-transparent'];
+
+            if (donationBtn && donationModal) {
+                donationBtn.addEventListener('click', (e) => {
+                    e.preventDefault();
+                    donationModal.classList.remove('hidden');
+                });
+
+                const closeModal = () => {
+                    donationModal.classList.add('hidden');
+                };
+
+                closeModalBtn.addEventListener('click', closeModal);
+                donationModal.addEventListener('click', (e) => {
+                    if (e.target === donationModal) {
+                        closeModal();
+                    }
+                });
+
+                wechatTab.addEventListener('click', () => {
+                    qrCodeImg.src = wechatQRUrl;
+                    qrCodeImg.alt = 'WeChat QR Code';
+                    alipayTab.classList.remove(...activeTabClasses);
+                    alipayTab.classList.add(...inactiveTabClasses);
+                    wechatTab.classList.add(...activeTabClasses);
+                    wechatTab.classList.remove(...inactiveTabClasses);
+                });
+
+                alipayTab.addEventListener('click', () => {
+                    qrCodeImg.src = alipayQRUrl;
+                    qrCodeImg.alt = 'Alipay QR Code';
+                    wechatTab.classList.remove(...activeTabClasses);
+                    wechatTab.classList.add(...inactiveTabClasses);
+                    alipayTab.classList.add(...activeTabClasses);
+                    alipayTab.classList.remove(...inactiveTabClasses);
+                });
+            }
+
+            // Generic QR Modal Logic (公众号)
+            const genericModal = document.getElementById('generic-qr-modal');
+            const genericModalTitle = document.getElementById('generic-modal-title');
+            const genericModalQrImg = document.getElementById('generic-modal-qr-img');
+            const genericModalDesc = document.getElementById('generic-modal-desc');
+            const closeGenericModalBtn = document.getElementById('close-generic-modal-btn');
+
+            const showQrModal = (title, imageUrl, description) => {
+                if (genericModal) {
+                    genericModalTitle.textContent = title;
+                    genericModalQrImg.src = imageUrl;
+                    genericModalDesc.textContent = description;
+                    genericModal.classList.remove('hidden');
+                }
+            };
+
+            const closeQrModal = () => {
+                if (genericModal) {
+                    genericModal.classList.add('hidden');
+                }
+            };
+
+            if (genericModal) {
+                closeGenericModalBtn.addEventListener('click', closeQrModal);
+                genericModal.addEventListener('click', (e) => {
+                    if (e.target === genericModal) {
+                        closeQrModal();
+                    }
+                });
+            }
+
+            // WeChat Public Account Trigger
+            const wechatPublicTrigger = document.getElementById('wechat-public-trigger');
+            if (wechatPublicTrigger) {
+                wechatPublicTrigger.addEventListener('click', (e) => {
+                    e.preventDefault();
+                    showQrModal(
+                        '微信公众号',
+                        'https://raw.githubusercontent.com/kyjl97/kyjl97/main/assets/wechat-qr.png',
+                        '扫码关注「得救之道」'
+                    );
+                });
+            }
+        })();
+    </script>
+</body>
+</html>
